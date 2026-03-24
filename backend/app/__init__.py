@@ -13,6 +13,7 @@ from flask import Flask, request
 from flask_cors import CORS
 
 from .config import Config
+from .openapi import register_openapi_routes
 from .utils.logger import setup_logger, get_logger
 
 
@@ -72,6 +73,8 @@ def create_app(config_class=Config):
     @app.route('/health')
     def health():
         return {'status': 'ok', 'service': 'MiroFish Backend'}
+
+    register_openapi_routes(app)
     
     if should_log_startup:
         logger.info("MiroFish Backend startup complete")
