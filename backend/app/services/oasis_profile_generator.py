@@ -83,6 +83,10 @@ class OasisAgentProfile:
             profile["profession"] = self.profession
         if self.interested_topics:
             profile["interested_topics"] = self.interested_topics
+        if self.source_entity_uuid:
+            profile["source_entity_uuid"] = self.source_entity_uuid
+        if self.source_entity_type:
+            profile["source_entity_type"] = self.source_entity_type
         
         return profile
     
@@ -1184,6 +1188,10 @@ Rules:
                 item["profession"] = profile.profession
             if profile.interested_topics:
                 item["interested_topics"] = profile.interested_topics
+            if profile.source_entity_uuid:
+                item["source_entity_uuid"] = profile.source_entity_uuid
+            if profile.source_entity_type:
+                item["source_entity_type"] = profile.source_entity_type
             
             data.append(item)
         

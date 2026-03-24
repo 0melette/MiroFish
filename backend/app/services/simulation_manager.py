@@ -1,7 +1,7 @@
 """
-OASIS模拟管理器
-管理Twitter和Reddit双平台并行模拟
-使用预设脚本 + LLM智能生成配置参数
+OASIS simulation manager.
+Manages parallel Twitter and Reddit simulations.
+Uses preset scripts plus LLM-generated configuration parameters.
 """
 
 import os
@@ -14,69 +14,68 @@ from enum import Enum
 
 from ..config import Config
 from ..utils.logger import get_logger
-from .zep_entity_reader import ZepEntityReader, FilteredEntities
+from .zep_entity_reader import ZepEntityReader, FilteredEntities, EntityNode
 from .oasis_profile_generator import OasisProfileGenerator, OasisAgentProfile
 from .simulation_config_generator import SimulationConfigGenerator, SimulationParameters
-from ..utils.locale import t
 
 logger = get_logger('mirofish.simulation')
 
 
 class SimulationStatus(str, Enum):
-    """模拟状态"""
+    """Simulation status."""
     CREATED = "created"
     PREPARING = "preparing"
     READY = "ready"
     RUNNING = "running"
     PAUSED = "paused"
-    STOPPED = "stopped"      # 模拟被手动停止
-    COMPLETED = "completed"  # 模拟自然完成
+    STOPPED = "stopped"      # The simulation was stopped manually.
+    COMPLETED = "completed"  # The simulation completed naturally.
     FAILED = "failed"
 
 
 class PlatformType(str, Enum):
-    """平台类型"""
+    """Platform type."""
     TWITTER = "twitter"
     REDDIT = "reddit"
 
 
 @dataclass
 class SimulationState:
-    """模拟状态"""
+    """Simulation state."""
     simulation_id: str
     project_id: str
     graph_id: str
     
-    # 平台启用状态
+    # Platform enablement flags.
     enable_twitter: bool = True
     enable_reddit: bool = True
     
-    # 状态
+    # Status.
     status: SimulationStatus = SimulationStatus.CREATED
     
-    # 准备阶段数据
+    # Preparation phase data.
     entities_count: int = 0
     profiles_count: int = 0
     entity_types: List[str] = field(default_factory=list)
     
-    # 配置生成信息
+    # Configuration generation metadata.
     config_generated: bool = False
     config_reasoning: str = ""
     
-    # 运行时数据
+    # Runtime data.
     current_round: int = 0
     twitter_status: str = "not_started"
     reddit_status: str = "not_started"
     
-    # 时间戳
+    # Timestamps.
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat())
     
-    # 错误信息
+    # Error information.
     error: Optional[str] = None
     
     def to_dict(self) -> Dict[str, Any]:
-        """完整状态字典（内部使用）"""
+        """Full state dictionary for internal use."""
         return {
             "simulation_id": self.simulation_id,
             "project_id": self.project_id,
@@ -98,7 +97,7 @@ class SimulationState:
         }
     
     def to_simple_dict(self) -> Dict[str, Any]:
-        """简化状态字典（API返回使用）"""
+        """Simplified state dictionary for API responses."""
         return {
             "simulation_id": self.simulation_id,
             "project_id": self.project_id,
@@ -114,36 +113,36 @@ class SimulationState:
 
 class SimulationManager:
     """
-    模拟管理器
-    
-    核心功能：
-    1. 从Zep图谱读取实体并过滤
-    2. 生成OASIS Agent Profile
-    3. 使用LLM智能生成模拟配置参数
-    4. 准备预设脚本所需的所有文件
+    Simulation manager.
+
+    Core responsibilities:
+    1. Read and filter entities from the Zep graph.
+    2. Generate OASIS agent profiles.
+    3. Use the LLM to generate simulation configuration parameters.
+    4. Prepare all files required by the preset simulation scripts.
     """
     
-    # 模拟数据存储目录
+    # Simulation data storage directory.
     SIMULATION_DATA_DIR = os.path.join(
         os.path.dirname(__file__), 
         '../../uploads/simulations'
     )
     
     def __init__(self):
-        # 确保目录存在
+        # Ensure the storage directory exists.
         os.makedirs(self.SIMULATION_DATA_DIR, exist_ok=True)
         
-        # 内存中的模拟状态缓存
+        # In-memory simulation state cache.
         self._simulations: Dict[str, SimulationState] = {}
     
     def _get_simulation_dir(self, simulation_id: str) -> str:
-        """获取模拟数据目录"""
+        """Get the simulation data directory."""
         sim_dir = os.path.join(self.SIMULATION_DATA_DIR, simulation_id)
         os.makedirs(sim_dir, exist_ok=True)
         return sim_dir
     
     def _save_simulation_state(self, state: SimulationState):
-        """保存模拟状态到文件"""
+        """Persist simulation state to disk."""
         sim_dir = self._get_simulation_dir(state.simulation_id)
         state_file = os.path.join(sim_dir, "state.json")
         
@@ -155,7 +154,7 @@ class SimulationManager:
         self._simulations[state.simulation_id] = state
     
     def _load_simulation_state(self, simulation_id: str) -> Optional[SimulationState]:
-        """从文件加载模拟状态"""
+        """Load simulation state from disk."""
         if simulation_id in self._simulations:
             return self._simulations[simulation_id]
         
@@ -199,13 +198,13 @@ class SimulationManager:
         enable_reddit: bool = True,
     ) -> SimulationState:
         """
-        创建新的模拟
+        Create a new simulation.
         
         Args:
-            project_id: 项目ID
-            graph_id: Zep图谱ID
-            enable_twitter: 是否启用Twitter模拟
-            enable_reddit: 是否启用Reddit模拟
+            project_id: Project ID.
+            graph_id: Zep graph ID.
+            enable_twitter: Whether to enable Twitter simulation.
+            enable_reddit: Whether to enable Reddit simulation.
             
         Returns:
             SimulationState
@@ -223,9 +222,114 @@ class SimulationManager:
         )
         
         self._save_simulation_state(state)
-        logger.info(f"创建模拟: {simulation_id}, project={project_id}, graph={graph_id}")
+        logger.info(f"Created simulation: {simulation_id}, project={project_id}, graph={graph_id}")
         
         return state
+
+    def _resolve_prepare_entities(
+        self,
+        entities: List[EntityNode],
+        selected_entity_uuids: Optional[List[str]] = None,
+        max_agents: Optional[int] = None
+    ) -> List[EntityNode]:
+        """Resolve the final entity set that will participate in the simulation."""
+        resolved_entities = list(entities)
+
+        if selected_entity_uuids:
+            entity_map = {entity.uuid: entity for entity in entities}
+            resolved_entities = [
+                entity_map[entity_uuid]
+                for entity_uuid in selected_entity_uuids
+                if entity_uuid in entity_map
+            ]
+
+        if max_agents is not None:
+            resolved_entities = resolved_entities[:max_agents]
+
+        return resolved_entities
+
+    def _normalize_override_topics(self, topics: Any) -> List[str]:
+        """Normalize user-provided topic override values."""
+        if isinstance(topics, list):
+            return [str(topic).strip() for topic in topics if str(topic).strip()]
+        if isinstance(topics, str):
+            return [topic.strip() for topic in topics.split(',') if topic.strip()]
+        return []
+
+    def _apply_override_to_entity(self, entity: EntityNode, override: Dict[str, Any]):
+        """Inject user edits into the entity before config and profile generation."""
+        if not override:
+            return
+
+        custom_name = override.get("name")
+        if custom_name:
+            entity.name = str(custom_name).strip()
+
+        summary_parts = []
+        for field in ["bio", "persona"]:
+            value = override.get(field)
+            if value:
+                summary_parts.append(str(value).strip())
+
+        profession = override.get("profession")
+        if profession:
+            entity.attributes["profession"] = str(profession).strip()
+
+        country = override.get("country")
+        if country:
+            entity.attributes["country"] = str(country).strip()
+
+        mbti = override.get("mbti")
+        if mbti:
+            entity.attributes["mbti"] = str(mbti).strip()
+
+        age = override.get("age")
+        if age not in [None, ""]:
+            entity.attributes["age"] = age
+
+        gender = override.get("gender")
+        if gender:
+            entity.attributes["gender"] = str(gender).strip()
+
+        interested_topics = self._normalize_override_topics(override.get("interested_topics"))
+        if interested_topics:
+            entity.attributes["interested_topics"] = interested_topics
+            summary_parts.append(f"Topics: {', '.join(interested_topics)}")
+
+        if summary_parts:
+            entity.summary = " ".join(summary_parts)
+
+    def _apply_override_to_profile(self, profile: OasisAgentProfile, override: Dict[str, Any]):
+        """Apply user-edited fields to the generated profile."""
+        if not override:
+            return
+
+        simple_string_fields = {
+            "username": "user_name",
+            "name": "name",
+            "bio": "bio",
+            "persona": "persona",
+            "country": "country",
+            "profession": "profession",
+            "mbti": "mbti",
+            "gender": "gender",
+        }
+
+        for source_key, target_attr in simple_string_fields.items():
+            value = override.get(source_key)
+            if value not in [None, ""]:
+                setattr(profile, target_attr, str(value).strip())
+
+        age = override.get("age")
+        if age not in [None, ""]:
+            try:
+                profile.age = int(age)
+            except (TypeError, ValueError):
+                logger.warning(f"Ignoring invalid age override: {age}")
+
+        interested_topics = self._normalize_override_topics(override.get("interested_topics"))
+        if interested_topics:
+            profile.interested_topics = interested_topics
     
     def prepare_simulation(
         self,
@@ -235,33 +339,39 @@ class SimulationManager:
         defined_entity_types: Optional[List[str]] = None,
         use_llm_for_profiles: bool = True,
         progress_callback: Optional[callable] = None,
-        parallel_profile_count: int = 3
+        parallel_profile_count: int = 3,
+        max_agents: Optional[int] = None,
+        selected_entity_uuids: Optional[List[str]] = None,
+        profile_overrides: Optional[Dict[str, Dict[str, Any]]] = None
     ) -> SimulationState:
         """
-        准备模拟环境（全程自动化）
+        Prepare the simulation environment end to end.
         
-        步骤：
-        1. 从Zep图谱读取并过滤实体
-        2. 为每个实体生成OASIS Agent Profile（可选LLM增强，支持并行）
-        3. 使用LLM智能生成模拟配置参数（时间、活跃度、发言频率等）
-        4. 保存配置文件和Profile文件
-        5. 复制预设脚本到模拟目录
+        Steps:
+        1. Read and filter entities from the Zep graph.
+        2. Generate an OASIS Agent profile for each entity, optionally with LLM enrichment and parallelism.
+        3. Use the LLM to generate simulation parameters such as time, activity, and posting frequency.
+        4. Save configuration and profile files.
+        5. Copy preset scripts into the simulation directory.
         
         Args:
-            simulation_id: 模拟ID
-            simulation_requirement: 模拟需求描述（用于LLM生成配置）
-            document_text: 原始文档内容（用于LLM理解背景）
-            defined_entity_types: 预定义的实体类型（可选）
-            use_llm_for_profiles: 是否使用LLM生成详细人设
-            progress_callback: 进度回调函数 (stage, progress, message)
-            parallel_profile_count: 并行生成人设的数量，默认3
+            simulation_id: Simulation ID.
+            simulation_requirement: Simulation requirement description used for LLM config generation.
+            document_text: Source document content used for context.
+            defined_entity_types: Predefined entity types, if any.
+            use_llm_for_profiles: Whether to use the LLM to generate detailed personas.
+            progress_callback: Progress callback in the form (stage, progress, message).
+            parallel_profile_count: Number of profiles to generate in parallel. Defaults to 3.
+            max_agents: Maximum number of entities to include in the simulation.
+            selected_entity_uuids: Exact entity UUIDs to include.
+            profile_overrides: User-defined persona overrides.
             
         Returns:
             SimulationState
         """
         state = self._load_simulation_state(simulation_id)
         if not state:
-            raise ValueError(f"模拟不存在: {simulation_id}")
+            raise ValueError(f"Simulation does not exist: {simulation_id}")
         
         try:
             state.status = SimulationStatus.PREPARING
@@ -269,50 +379,78 @@ class SimulationManager:
             
             sim_dir = self._get_simulation_dir(simulation_id)
             
-            # ========== 阶段1: 读取并过滤实体 ==========
+            # ========== Stage 1: Read and filter entities ==========
             if progress_callback:
-                progress_callback("reading", 0, t('progress.connectingZepGraph'))
+                progress_callback("reading", 0, "Connecting to the Zep graph...")
             
             reader = ZepEntityReader()
             
             if progress_callback:
-                progress_callback("reading", 30, t('progress.readingNodeData'))
+                progress_callback("reading", 30, "Loading node data...")
             
             filtered = reader.filter_defined_entities(
                 graph_id=state.graph_id,
                 defined_entity_types=defined_entity_types,
                 enrich_with_edges=True
             )
+
+            original_filtered_count = filtered.filtered_count
+
+            resolved_entities = self._resolve_prepare_entities(
+                filtered.entities,
+                selected_entity_uuids=selected_entity_uuids,
+                max_agents=max_agents
+            )
+
+            filtered.entities = resolved_entities
+            filtered.filtered_count = len(resolved_entities)
+            filtered.entity_types = {
+                entity.get_entity_type() or "Entity"
+                for entity in resolved_entities
+            }
+
+            logger.info(
+                "Simulation entity selection completed: simulation_id=%s, original_entities=%s, selected_entities=%s, max_agents=%s, final_entities=%s",
+                simulation_id,
+                original_filtered_count,
+                len(selected_entity_uuids or []),
+                max_agents,
+                filtered.filtered_count,
+            )
+
+            profile_overrides = profile_overrides or {}
+            for entity in filtered.entities:
+                self._apply_override_to_entity(entity, profile_overrides.get(entity.uuid, {}))
             
             state.entities_count = filtered.filtered_count
             state.entity_types = list(filtered.entity_types)
             
             if progress_callback:
                 progress_callback(
-                    "reading", 100,
-                    t('progress.readingComplete', count=filtered.filtered_count),
+                    "reading", 100, 
+                    f"Completed. Found {filtered.filtered_count} entities.",
                     current=filtered.filtered_count,
                     total=filtered.filtered_count
                 )
             
             if filtered.filtered_count == 0:
                 state.status = SimulationStatus.FAILED
-                state.error = "没有找到符合条件的实体，请检查图谱是否正确构建"
+                state.error = "No matching entities were found. Check whether the graph was built correctly."
                 self._save_simulation_state(state)
                 return state
             
-            # ========== 阶段2: 生成Agent Profile ==========
+            # ========== Stage 2: Generate Agent profiles ==========
             total_entities = len(filtered.entities)
             
             if progress_callback:
                 progress_callback(
-                    "generating_profiles", 0,
-                    t('progress.startGenerating'),
+                    "generating_profiles", 0, 
+                    "Starting generation...",
                     current=0,
                     total=total_entities
                 )
             
-            # 传入graph_id以启用Zep检索功能，获取更丰富的上下文
+            # Pass graph_id to enable Zep retrieval for richer context.
             generator = OasisProfileGenerator(graph_id=state.graph_id)
             
             def profile_progress(current, total, msg):
@@ -326,7 +464,7 @@ class SimulationManager:
                         item_name=msg
                     )
             
-            # 设置实时保存的文件路径（优先使用 Reddit JSON 格式）
+            # Set the realtime output path, preferring Reddit JSON format.
             realtime_output_path = None
             realtime_platform = "reddit"
             if state.enable_reddit:
@@ -340,20 +478,28 @@ class SimulationManager:
                 entities=filtered.entities,
                 use_llm=use_llm_for_profiles,
                 progress_callback=profile_progress,
-                graph_id=state.graph_id,  # 传入graph_id用于Zep检索
-                parallel_count=parallel_profile_count,  # 并行生成数量
-                realtime_output_path=realtime_output_path,  # 实时保存路径
-                output_platform=realtime_platform  # 输出格式
+                graph_id=state.graph_id,  # Provide graph_id for Zep retrieval.
+                parallel_count=parallel_profile_count,  # Parallel generation count.
+                realtime_output_path=realtime_output_path,  # Realtime output path.
+                output_platform=realtime_platform  # Output format.
             )
+
+            for profile in profiles:
+                if not profile:
+                    continue
+                self._apply_override_to_profile(
+                    profile,
+                    profile_overrides.get(profile.source_entity_uuid or "", {})
+                )
             
             state.profiles_count = len(profiles)
             
-            # 保存Profile文件（注意：Twitter使用CSV格式，Reddit使用JSON格式）
-            # Reddit 已经在生成过程中实时保存了，这里再保存一次确保完整性
+            # Save profile files. Twitter uses CSV and Reddit uses JSON.
+            # Reddit was already written during generation, but save again to ensure completeness.
             if progress_callback:
                 progress_callback(
-                    "generating_profiles", 95,
-                    t('progress.savingProfiles'),
+                    "generating_profiles", 95, 
+                    "Saving profile files...",
                     current=total_entities,
                     total=total_entities
                 )
@@ -366,7 +512,7 @@ class SimulationManager:
                 )
             
             if state.enable_twitter:
-                # Twitter使用CSV格式！这是OASIS的要求
+                # Twitter must use CSV format for OASIS.
                 generator.save_profiles(
                     profiles=profiles,
                     file_path=os.path.join(sim_dir, "twitter_profiles.csv"),
@@ -375,8 +521,8 @@ class SimulationManager:
             
             if progress_callback:
                 progress_callback(
-                    "generating_profiles", 100,
-                    t('progress.profilesComplete', count=len(profiles)),
+                    "generating_profiles", 100, 
+                    f"完成，共 {len(profiles)} 个Profile",
                     current=len(profiles),
                     total=len(profiles)
                 )
@@ -384,8 +530,8 @@ class SimulationManager:
             # ========== 阶段3: LLM智能生成模拟配置 ==========
             if progress_callback:
                 progress_callback(
-                    "generating_config", 0,
-                    t('progress.analyzingRequirements'),
+                    "generating_config", 0, 
+                    "正在分析模拟需求...",
                     current=0,
                     total=3
                 )
@@ -394,8 +540,8 @@ class SimulationManager:
             
             if progress_callback:
                 progress_callback(
-                    "generating_config", 30,
-                    t('progress.callingLLMConfig'),
+                    "generating_config", 30, 
+                    "正在调用LLM生成配置...",
                     current=1,
                     total=3
                 )
@@ -413,8 +559,8 @@ class SimulationManager:
             
             if progress_callback:
                 progress_callback(
-                    "generating_config", 70,
-                    t('progress.savingConfigFiles'),
+                    "generating_config", 70, 
+                    "正在保存配置文件...",
                     current=2,
                     total=3
                 )
@@ -429,8 +575,8 @@ class SimulationManager:
             
             if progress_callback:
                 progress_callback(
-                    "generating_config", 100,
-                    t('progress.configComplete'),
+                    "generating_config", 100, 
+                    "配置生成完成",
                     current=3,
                     total=3
                 )

@@ -20,7 +20,6 @@ from openai import OpenAI
 
 from ..config import Config
 from ..utils.logger import get_logger
-from ..utils.locale import get_language_instruction, t
 from .zep_entity_reader import EntityNode, ZepEntityReader
 
 logger = get_logger('mirofish.simulation_config')
@@ -293,17 +292,17 @@ class SimulationConfigGenerator:
         reasoning_parts = []
         
         # ========== 步骤1: 生成时间配置 ==========
-        report_progress(1, t('progress.generatingTimeConfig'))
+        report_progress(1, "生成时间配置...")
         num_entities = len(entities)
         time_config_result = self._generate_time_config(context, num_entities)
         time_config = self._parse_time_config(time_config_result, num_entities)
-        reasoning_parts.append(f"{t('progress.timeConfigLabel')}: {time_config_result.get('reasoning', t('common.success'))}")
+        reasoning_parts.append(f"时间配置: {time_config_result.get('reasoning', '成功')}")
         
         # ========== 步骤2: 生成事件配置 ==========
-        report_progress(2, t('progress.generatingEventConfig'))
+        report_progress(2, "生成事件配置和热点话题...")
         event_config_result = self._generate_event_config(context, simulation_requirement, entities)
         event_config = self._parse_event_config(event_config_result)
-        reasoning_parts.append(f"{t('progress.eventConfigLabel')}: {event_config_result.get('reasoning', t('common.success'))}")
+        reasoning_parts.append(f"事件配置: {event_config_result.get('reasoning', '成功')}")
         
         # ========== 步骤3-N: 分批生成Agent配置 ==========
         all_agent_configs = []
@@ -314,7 +313,7 @@ class SimulationConfigGenerator:
             
             report_progress(
                 3 + batch_idx,
-                t('progress.generatingAgentConfig', start=start_idx + 1, end=end_idx, total=len(entities))
+                f"生成Agent配置 ({start_idx + 1}-{end_idx}/{len(entities)})..."
             )
             
             batch_configs = self._generate_agent_configs_batch(
@@ -325,16 +324,16 @@ class SimulationConfigGenerator:
             )
             all_agent_configs.extend(batch_configs)
         
-        reasoning_parts.append(t('progress.agentConfigResult', count=len(all_agent_configs)))
+        reasoning_parts.append(f"Agent配置: 成功生成 {len(all_agent_configs)} 个")
         
         # ========== 为初始帖子分配发布者 Agent ==========
         logger.info("为初始帖子分配合适的发布者 Agent...")
         event_config = self._assign_initial_post_agents(event_config, all_agent_configs)
         assigned_count = len([p for p in event_config.initial_posts if p.get("poster_agent_id") is not None])
-        reasoning_parts.append(t('progress.postAssignResult', count=assigned_count))
+        reasoning_parts.append(f"初始帖子分配: {assigned_count} 个帖子已分配发布者")
         
         # ========== 最后一步: 生成平台配置 ==========
-        report_progress(total_steps, t('progress.generatingPlatformConfig'))
+        report_progress(total_steps, "生成平台配置...")
         twitter_config = None
         reddit_config = None
         
@@ -557,7 +556,7 @@ Please generate a JSON time configuration.
 - General pattern: very low activity late at night, increasing activity in the morning, moderate activity during work hours, and peak activity in the evening
 - **Important**: The example values below are only references. You must adjust the exact time ranges based on the nature of the event and the characteristics of the participant group.
   - For example: students may peak around 21:00-23:00; media may remain active throughout the day; official institutions may only be active during work hours
-  - For example: breaking news or sudden events may still generate discussion late at night, so off_peak_hours may need to be shortened
+  - For example: breaking news or sudden热点 events may still generate discussion late at night, so off_peak_hours may need to be shortened
 
 ### Return JSON format only (no markdown)
 
@@ -596,7 +595,7 @@ Field descriptions:
         except Exception as e:
             logger.warning(f"Time config LLM generation failed: {e}, using default config")
             return self._get_default_time_config(num_entities)
-    
+
     def _get_default_time_config(self, num_entities: int) -> Dict[str, Any]:
         """Get the default time configuration for typical daily routines."""
         return {
@@ -610,31 +609,31 @@ Field descriptions:
             "work_hours": [9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
             "reasoning": "Using the default daily routine configuration (1 hour per round)"
         }
-    
+
     def _parse_time_config(self, result: Dict[str, Any], num_entities: int) -> TimeSimulationConfig:
         """Parse the time configuration result and validate that agents_per_hour does not exceed total agents."""
         # Get raw values from the model result, with fallbacks
         agents_per_hour_min = result.get("agents_per_hour_min", max(1, num_entities // 15))
         agents_per_hour_max = result.get("agents_per_hour_max", max(5, num_entities // 5))
-        
+
         # Validate and correct values so they do not exceed the total number of agents
         if agents_per_hour_min > num_entities:
             logger.warning(
                 f"agents_per_hour_min ({agents_per_hour_min}) exceeds total agent count ({num_entities}); corrected"
             )
             agents_per_hour_min = max(1, num_entities // 10)
-        
+
         if agents_per_hour_max > num_entities:
             logger.warning(
                 f"agents_per_hour_max ({agents_per_hour_max}) exceeds total agent count ({num_entities}); corrected"
             )
             agents_per_hour_max = max(agents_per_hour_min + 1, num_entities // 2)
-        
+
         # Ensure min < max
         if agents_per_hour_min >= agents_per_hour_max:
             agents_per_hour_min = max(1, agents_per_hour_max // 2)
             logger.warning(f"agents_per_hour_min >= max; corrected to {agents_per_hour_min}")
-        
+
         return TimeSimulationConfig(
             total_simulation_hours=result.get("total_simulation_hours", 72),
             minutes_per_round=result.get("minutes_per_round", 60),  # Default: 1 hour per round
@@ -847,7 +846,7 @@ Field descriptions:
 
 ## 任务
 为每个实体生成活动配置，注意：
-- **时间符合目标用户群体作息**：以下为参考（东八区），请根据模拟场景调整
+- **时间符合中国人作息**：凌晨0-5点几乎不活动，晚间19-22点最活跃
 - **官方机构**（University/GovernmentAgency）：活跃度低(0.1-0.3)，工作时间(9-17)活动，响应慢(60-240分钟)，影响力高(2.5-3.0)
 - **媒体**（MediaOutlet）：活跃度中(0.4-0.6)，全天活动(8-23)，响应快(5-30分钟)，影响力高(2.0-2.5)
 - **个人**（Student/Person/Alumni）：活跃度高(0.6-0.9)，主要晚间活动(18-23)，响应快(1-15分钟)，影响力低(0.8-1.2)
