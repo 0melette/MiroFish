@@ -328,12 +328,12 @@ def _check_simulation_prepared(simulation_id: str) -> tuple:
                     state_data["updated_at"] = datetime.now().isoformat()
                     with open(state_file, 'w', encoding='utf-8') as f:
                         json.dump(state_data, f, ensure_ascii=False, indent=2)
-                        logger.info(f"Automatically updated simulation state: {simulation_id} preparing -> ready")
+                    logger.info(f"Automatically updated simulation state: {simulation_id} preparing -> ready")
                     status = "ready"
                 except Exception as e:
-                        logger.warning(f"Failed to auto-update simulation state: {e}")
+                    logger.warning(f"Failed to auto-update simulation state: {e}")
             
-                    logger.info(f"Simulation {simulation_id} prepared-state result: ready (status={status}, config_generated={config_generated})")
+            logger.info(f"Simulation {simulation_id} prepared-state result: ready (status={status}, config_generated={config_generated})")
             return True, {
                 "status": status,
                 "entities_count": state_data.get("entities_count", 0),
