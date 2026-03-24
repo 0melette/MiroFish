@@ -557,26 +557,26 @@ def prepare_simulation():
             }
         )
         
-        # 更新模拟状态（包含预先获取的实体数量）
+        # Update simulation state, including the precomputed entity count.
         state.status = SimulationStatus.PREPARING
         manager._save_simulation_state(state)
         
-        # 定义后台任务
+        # Define the background task.
         def run_prepare():
             try:
                 task_manager.update_task(
                     task_id,
                     status=TaskStatus.PROCESSING,
                     progress=0,
-                    message="开始准备模拟环境..."
+                    message="Starting simulation environment preparation..."
                 )
                 
-                # 准备模拟（带进度回调）
-                # 存储阶段进度详情
+                # Prepare the simulation with a progress callback.
+                # Store detailed stage progress.
                 stage_details = {}
                 
                 def progress_callback(stage, progress, message, **kwargs):
-                    # 计算总进度
+                    # Compute total progress.
                     stage_weights = {
                         "reading": (0, 20),           # 0-20%
                         "generating_profiles": (20, 70),  # 20-70%
@@ -587,18 +587,18 @@ def prepare_simulation():
                     start, end = stage_weights.get(stage, (0, 100))
                     current_progress = int(start + (end - start) * progress / 100)
                     
-                    # 构建详细进度信息
+                    # Build detailed progress information.
                     stage_names = {
-                        "reading": "读取图谱实体",
-                        "generating_profiles": "生成Agent人设",
-                        "generating_config": "生成模拟配置",
-                        "copying_scripts": "准备模拟脚本"
+                        "reading": "Read graph entities",
+                        "generating_profiles": "Generate Agent profiles",
+                        "generating_config": "Generate simulation config",
+                        "copying_scripts": "Prepare simulation scripts"
                     }
                     
                     stage_index = list(stage_weights.keys()).index(stage) + 1 if stage in stage_weights else 1
                     total_stages = len(stage_weights)
                     
-                    # 更新阶段详情
+                    # Update stage detail.
                     stage_details[stage] = {
                         "stage_name": stage_names.get(stage, stage),
                         "stage_progress": progress,
@@ -607,7 +607,7 @@ def prepare_simulation():
                         "item_name": kwargs.get("item_name", "")
                     }
                     
-                    # 构建详细进度信息
+                    # Build the detail payload.
                     detail = stage_details[stage]
                     progress_detail_data = {
                         "current_stage": stage,
@@ -620,7 +620,7 @@ def prepare_simulation():
                         "item_description": message
                     }
                     
-                    # 构建简洁消息
+                    # Build a concise status message.
                     if detail["total"] > 0:
                         detailed_message = (
                             f"[{stage_index}/{total_stages}] {stage_names.get(stage, stage)}: "
@@ -649,24 +649,24 @@ def prepare_simulation():
                     profile_overrides=profile_overrides
                 )
                 
-                # 任务完成
+                # Mark task completion.
                 task_manager.complete_task(
                     task_id,
                     result=result_state.to_simple_dict()
                 )
                 
             except Exception as e:
-                logger.error(f"准备模拟失败: {str(e)}")
+                logger.error(f"Simulation preparation failed: {str(e)}")
                 task_manager.fail_task(task_id, str(e))
                 
-                # 更新模拟状态为失败
+                # Update the simulation state to failed.
                 state = manager.get_simulation(simulation_id)
                 if state:
                     state.status = SimulationStatus.FAILED
                     state.error = str(e)
                     manager._save_simulation_state(state)
         
-        # 启动后台线程
+        # Start the background thread.
         thread = threading.Thread(target=run_prepare, daemon=True)
         thread.start()
         
@@ -676,10 +676,10 @@ def prepare_simulation():
                 "simulation_id": simulation_id,
                 "task_id": task_id,
                 "status": "preparing",
-                "message": "准备任务已启动，请通过 /api/simulation/prepare/status 查询进度",
+                "message": "Preparation task started. Check progress through /api/simulation/prepare/status",
                 "already_prepared": False,
-                "expected_entities_count": state.entities_count,  # 预期的Agent总数
-                "entity_types": state.entity_types  # 实体类型列表
+                "expected_entities_count": state.entities_count,  # Expected total number of Agents.
+                "entity_types": state.entity_types  # Entity type list.
             }
         })
         
@@ -690,7 +690,7 @@ def prepare_simulation():
         }), 404
         
     except Exception as e:
-        logger.error(f"启动准备任务失败: {str(e)}")
+        logger.error(f"Failed to start the preparation task: {str(e)}")
         return jsonify({
             "success": False,
             "error": str(e),
@@ -701,19 +701,19 @@ def prepare_simulation():
 @simulation_bp.route('/prepare/status', methods=['POST'])
 def get_prepare_status():
     """
-    查询准备任务进度
+    Query preparation task progress.
     
-    支持两种查询方式：
-    1. 通过task_id查询正在进行的任务进度
-    2. 通过simulation_id检查是否已有完成的准备工作
+    Supports two query modes:
+    1. Query active task progress by task_id.
+    2. Check whether preparation already exists by simulation_id.
     
-    请求（JSON）：
+    Request JSON:
         {
-            "task_id": "task_xxxx",          // 可选，prepare返回的task_id
-            "simulation_id": "sim_xxxx"      // 可选，模拟ID（用于检查已完成的准备）
+            "task_id": "task_xxxx",          // optional, task_id returned by prepare
+            "simulation_id": "sim_xxxx"      // optional, simulation ID for prepared-state checks
         }
     
-    返回：
+    Returns:
         {
             "success": true,
             "data": {
@@ -721,8 +721,8 @@ def get_prepare_status():
                 "status": "processing|completed|ready",
                 "progress": 45,
                 "message": "...",
-                "already_prepared": true|false,  // 是否已有完成的准备
-                "prepare_info": {...}            // 已准备完成时的详细信息
+                "already_prepared": true|false,  // Whether completed preparation already exists
+                "prepare_info": {...}            // Detailed information when ready
             }
         }
     """
@@ -734,7 +734,7 @@ def get_prepare_status():
         task_id = data.get('task_id')
         simulation_id = data.get('simulation_id')
         
-        # 如果提供了simulation_id，先检查是否已准备完成
+        # If simulation_id is provided, first check whether preparation already exists.
         if simulation_id:
             is_prepared, prepare_info = _check_simulation_prepared(simulation_id)
             if is_prepared:
@@ -744,36 +744,36 @@ def get_prepare_status():
                         "simulation_id": simulation_id,
                         "status": "ready",
                         "progress": 100,
-                        "message": "已有完成的准备工作",
+                        "message": "Completed preparation already exists",
                         "already_prepared": True,
                         "prepare_info": prepare_info
                     }
                 })
         
-        # 如果没有task_id，返回错误
+        # Return an error if task_id is missing.
         if not task_id:
             if simulation_id:
-                # 有simulation_id但未准备完成
+                # simulation_id exists but preparation has not started.
                 return jsonify({
                     "success": True,
                     "data": {
                         "simulation_id": simulation_id,
                         "status": "not_started",
                         "progress": 0,
-                        "message": "尚未开始准备，请调用 /api/simulation/prepare 开始",
+                        "message": "Preparation has not started yet. Call /api/simulation/prepare to begin.",
                         "already_prepared": False
                     }
                 })
             return jsonify({
                 "success": False,
-                "error": "请提供 task_id 或 simulation_id"
+                "error": "Please provide task_id or simulation_id"
             }), 400
         
         task_manager = TaskManager()
         task = task_manager.get_task(task_id)
         
         if not task:
-            # 任务不存在，但如果有simulation_id，检查是否已准备完成
+            # The task is missing. If simulation_id is provided, check for an already-prepared simulation.
             if simulation_id:
                 is_prepared, prepare_info = _check_simulation_prepared(simulation_id)
                 if is_prepared:
@@ -784,7 +784,7 @@ def get_prepare_status():
                             "task_id": task_id,
                             "status": "ready",
                             "progress": 100,
-                            "message": "任务已完成（准备工作已存在）",
+                            "message": "Task is already complete because prepared data exists",
                             "already_prepared": True,
                             "prepare_info": prepare_info
                         }
@@ -792,7 +792,7 @@ def get_prepare_status():
             
             return jsonify({
                 "success": False,
-                "error": f"任务不存在: {task_id}"
+                "error": f"Task does not exist: {task_id}"
             }), 404
         
         task_dict = task.to_dict()
@@ -804,7 +804,7 @@ def get_prepare_status():
         })
         
     except Exception as e:
-        logger.error(f"查询任务状态失败: {str(e)}")
+        logger.error(f"Failed to query task status: {str(e)}")
         return jsonify({
             "success": False,
             "error": str(e)
@@ -813,7 +813,7 @@ def get_prepare_status():
 
 @simulation_bp.route('/<simulation_id>', methods=['GET'])
 def get_simulation(simulation_id: str):
-    """获取模拟状态"""
+    """Get simulation state."""
     try:
         manager = SimulationManager()
         state = manager.get_simulation(simulation_id)
@@ -821,12 +821,12 @@ def get_simulation(simulation_id: str):
         if not state:
             return jsonify({
                 "success": False,
-                "error": f"模拟不存在: {simulation_id}"
+                "error": f"Simulation does not exist: {simulation_id}"
             }), 404
         
         result = state.to_dict()
         
-        # 如果模拟已准备好，附加运行说明
+        # Attach run instructions when the simulation is ready.
         if state.status == SimulationStatus.READY:
             result["run_instructions"] = manager.get_run_instructions(simulation_id)
         
@@ -836,7 +836,7 @@ def get_simulation(simulation_id: str):
         })
         
     except Exception as e:
-        logger.error(f"获取模拟状态失败: {str(e)}")
+        logger.error(f"Failed to fetch simulation state: {str(e)}")
         return jsonify({
             "success": False,
             "error": str(e),
@@ -847,10 +847,10 @@ def get_simulation(simulation_id: str):
 @simulation_bp.route('/list', methods=['GET'])
 def list_simulations():
     """
-    列出所有模拟
+    List all simulations.
     
-    Query参数：
-        project_id: 按项目ID过滤（可选）
+    Query params:
+        project_id: Optional project ID filter.
     """
     try:
         project_id = request.args.get('project_id')
@@ -865,7 +865,7 @@ def list_simulations():
         })
         
     except Exception as e:
-        logger.error(f"列出模拟失败: {str(e)}")
+        logger.error(f"Failed to list simulations: {str(e)}")
         return jsonify({
             "success": False,
             "error": str(e),
@@ -875,22 +875,22 @@ def list_simulations():
 
 def _get_report_id_for_simulation(simulation_id: str) -> str:
     """
-    获取 simulation 对应的最新 report_id
+    Get the latest report_id associated with a simulation.
     
-    遍历 reports 目录，找出 simulation_id 匹配的 report，
-    如果有多个则返回最新的（按 created_at 排序）
+    Traverse the reports directory and find reports matching simulation_id.
+    If multiple matches exist, return the newest one by created_at.
     
     Args:
-        simulation_id: 模拟ID
+        simulation_id: Simulation ID.
         
     Returns:
-        report_id 或 None
+        report_id or None.
     """
     import json
     from datetime import datetime
     
-    # reports 目录路径：backend/uploads/reports
-    # __file__ 是 app/api/simulation.py，需要向上两级到 backend/
+    # reports directory path: backend/uploads/reports
+    # __file__ is app/api/simulation.py, so walk up two levels to backend/.
     reports_dir = os.path.join(os.path.dirname(__file__), '../../uploads/reports')
     if not os.path.exists(reports_dir):
         return None
@@ -923,34 +923,34 @@ def _get_report_id_for_simulation(simulation_id: str) -> str:
         if not matching_reports:
             return None
         
-        # 按创建时间倒序排序，返回最新的
+        # Sort by creation time descending and return the newest report.
         matching_reports.sort(key=lambda x: x.get("created_at", ""), reverse=True)
         return matching_reports[0].get("report_id")
         
     except Exception as e:
-        logger.warning(f"查找 simulation {simulation_id} 的 report 失败: {e}")
+        logger.warning(f"Failed to find a report for simulation {simulation_id}: {e}")
         return None
 
 
 @simulation_bp.route('/history', methods=['GET'])
 def get_simulation_history():
     """
-    获取历史模拟列表（带项目详情）
+    Get simulation history with project details.
     
-    用于首页历史项目展示，返回包含项目名称、描述等丰富信息的模拟列表
+    Used by the home page history view. Returns simulation records enriched with project metadata.
     
-    Query参数：
-        limit: 返回数量限制（默认20）
+    Query params:
+        limit: Maximum number of results to return. Defaults to 20.
     
-    返回：
+    Returns:
         {
             "success": true,
             "data": [
                 {
                     "simulation_id": "sim_xxxx",
                     "project_id": "proj_xxxx",
-                    "project_name": "武大舆情分析",
-                    "simulation_requirement": "如果武汉大学发布...",
+                    "project_name": "Wuhan University public opinion analysis",
+                    "simulation_requirement": "If Wuhan University publishes ...",
                     "status": "completed",
                     "entities_count": 68,
                     "profiles_count": 68,
@@ -973,7 +973,7 @@ def get_simulation_history():
         manager = SimulationManager()
         simulations = manager.list_simulations()[:limit]
         
-        # 增强模拟数据，只从 Simulation 文件读取
+        # Enrich simulation data using only Simulation files.
         enriched_simulations = []
         for sim in simulations:
             sim_dict = sim.to_dict()
