@@ -415,21 +415,21 @@ class ParallelIPCHandler:
     
     async def handle_batch_interview(self, command_id: str, interviews: List[Dict], platform: str = None) -> bool:
         """
-        处理批量采访命令
-        
+        Handle a batch interview command.
+
         Args:
-            command_id: 命令ID
+            command_id: Command ID.
             interviews: [{"agent_id": int, "prompt": str, "platform": str(optional)}, ...]
-            platform: 默认平台（可被每个interview项覆盖）
-                - "twitter": 只采访Twitter平台
-                - "reddit": 只采访Reddit平台
-                - None/不指定: 每个Agent同时采访两个平台
+            platform: Default platform (overridden per-item).
+                - "twitter": Twitter only
+                - "reddit":  Reddit only
+                - None: both platforms
         """
-        # 按平台分组
+        # Group by platform
         twitter_interviews = []
         reddit_interviews = []
-        both_platforms_interviews = []  # 需要同时采访两个平台的
-        
+        both_platforms_interviews = []
+
         for interview in interviews:
             item_platform = interview.get("platform", platform)
             if item_platform == "twitter":
@@ -437,19 +437,18 @@ class ParallelIPCHandler:
             elif item_platform == "reddit":
                 reddit_interviews.append(interview)
             else:
-                # 未指定平台：两个平台都采访
                 both_platforms_interviews.append(interview)
-        
-        # 把 both_platforms_interviews 拆分到两个平台
+
         if both_platforms_interviews:
             if self.twitter_env:
                 twitter_interviews.extend(both_platforms_interviews)
             if self.reddit_env:
                 reddit_interviews.extend(both_platforms_interviews)
-        
+
         results = {}
-        
-        # 处理Twitter平台的采访
+        agent_errors = []  # per-agent error details
+
+        # --- Twitter ---
         if twitter_interviews and self.twitter_env:
             try:
                 twitter_actions = {}
@@ -463,20 +462,22 @@ class ParallelIPCHandler:
                             action_args={"prompt": prompt}
                         )
                     except Exception as e:
-                        print(f"  警告: 无法获取Twitter Agent {agent_id}: {e}")
-                
+                        msg = f"Cannot get Twitter agent {agent_id}: {e}"
+                        print(f"  WARNING: {msg}")
+                        agent_errors.append({"platform": "twitter", "agent_id": agent_id, "error": str(e)})
+
                 if twitter_actions:
                     await self.twitter_env.step(twitter_actions)
-                    
                     for interview in twitter_interviews:
                         agent_id = interview.get("agent_id")
                         result = self._get_interview_result(agent_id, "twitter")
                         result["platform"] = "twitter"
                         results[f"twitter_{agent_id}"] = result
             except Exception as e:
-                print(f"  Twitter批量Interview失败: {e}")
-        
-        # 处理Reddit平台的采访
+                print(f"  Twitter batch interview failed: {e}")
+                agent_errors.append({"platform": "twitter", "agent_id": "all", "error": str(e)})
+
+        # --- Reddit ---
         if reddit_interviews and self.reddit_env:
             try:
                 reddit_actions = {}
@@ -490,28 +491,35 @@ class ParallelIPCHandler:
                             action_args={"prompt": prompt}
                         )
                     except Exception as e:
-                        print(f"  警告: 无法获取Reddit Agent {agent_id}: {e}")
-                
+                        msg = f"Cannot get Reddit agent {agent_id}: {e}"
+                        print(f"  WARNING: {msg}")
+                        agent_errors.append({"platform": "reddit", "agent_id": agent_id, "error": str(e)})
+
                 if reddit_actions:
                     await self.reddit_env.step(reddit_actions)
-                    
                     for interview in reddit_interviews:
                         agent_id = interview.get("agent_id")
                         result = self._get_interview_result(agent_id, "reddit")
                         result["platform"] = "reddit"
                         results[f"reddit_{agent_id}"] = result
             except Exception as e:
-                print(f"  Reddit批量Interview失败: {e}")
-        
+                print(f"  Reddit batch interview failed: {e}")
+                agent_errors.append({"platform": "reddit", "agent_id": "all", "error": str(e)})
+
         if results:
             self.send_response(command_id, "completed", result={
                 "interviews_count": len(results),
-                "results": results
+                "results": results,
+                "agent_errors": agent_errors,  # partial failures still visible
             })
-            print(f"  批量Interview完成: {len(results)} 个Agent")
+            print(f"  Batch interview done: {len(results)} agent(s), {len(agent_errors)} error(s)")
             return True
         else:
-            self.send_response(command_id, "failed", error="没有成功的采访")
+            error_summary = "; ".join(
+                f"{e['platform']} agent {e['agent_id']}: {e['error']}" for e in agent_errors
+            ) if agent_errors else "No interviews succeeded (no agents or env not ready)"
+            print(f"  Batch interview failed — {error_summary}")
+            self.send_response(command_id, "failed", error=error_summary, result={"agent_errors": agent_errors})
             return False
     
     def _get_interview_result(self, agent_id: int, platform: str) -> Dict[str, Any]:

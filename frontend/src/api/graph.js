@@ -68,3 +68,33 @@ export function getProject(projectId) {
     method: 'get'
   })
 }
+
+/**
+ * Delete a single edge (relationship) by UUID.
+ * @param {String} edgeUuid - Edge UUID.
+ * @returns {Promise}
+ */
+export function deleteEdge(edgeUuid) {
+  return service({
+    url: `/api/graph/edge/${edgeUuid}`,
+    method: 'delete'
+  })
+}
+
+/**
+ * Import relationships from a markdown file.
+ * @param {String} graphId - Target graph ID.
+ * @param {File}   file    - .md file selected by user.
+ * @returns {Promise}
+ */
+export function importMarkdown(graphId, file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return service({
+    url: `/api/graph/import-md/${graphId}`,
+    method: 'post',
+    data: formData,
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+}
+

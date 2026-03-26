@@ -428,7 +428,7 @@ def download_report(report_id: str):
         )
         
     except Exception as e:
-        logger.error(f"下载报告失败: {str(e)}")
+        logger.error(f"Failed to download report: {str(e)}")
         return jsonify({
             "success": False,
             "error": str(e),
@@ -445,16 +445,16 @@ def delete_report(report_id: str):
         if not success:
             return jsonify({
                 "success": False,
-                "error": f"报告不存在: {report_id}"
+                "error": f"Report not found: {report_id}"
             }), 404
         
         return jsonify({
             "success": True,
-            "message": f"报告已删除: {report_id}"
+            "message": f"Report deleted: {report_id}"
         })
         
     except Exception as e:
-        logger.error(f"删除报告失败: {str(e)}")
+        logger.error(f"Failed to delete report: {str(e)}")
         return jsonify({
             "success": False,
             "error": str(e),
@@ -501,13 +501,13 @@ def chat_with_report_agent():
         if not simulation_id:
             return jsonify({
                 "success": False,
-                "error": "请提供 simulation_id"
+                "error": "Please provide simulation_id"
             }), 400
         
         if not message:
             return jsonify({
                 "success": False,
-                "error": "请提供 message"
+                "error": "Please provide message"
             }), 400
         
         # 获取模拟和项目信息
@@ -517,21 +517,21 @@ def chat_with_report_agent():
         if not state:
             return jsonify({
                 "success": False,
-                "error": f"模拟不存在: {simulation_id}"
+                "error": f"Simulation not found: {simulation_id}"
             }), 404
         
         project = ProjectManager.get_project(state.project_id)
         if not project:
             return jsonify({
                 "success": False,
-                "error": f"项目不存在: {state.project_id}"
+                "error": f"Project not found: {state.project_id}"
             }), 404
         
         graph_id = state.graph_id or project.graph_id
         if not graph_id:
             return jsonify({
                 "success": False,
-                "error": "缺少图谱ID"
+                "error": "Missing graph ID"
             }), 400
         
         simulation_requirement = project.simulation_requirement or ""
@@ -551,7 +551,7 @@ def chat_with_report_agent():
         })
         
     except Exception as e:
-        logger.error(f"对话失败: {str(e)}")
+        logger.error(f"Chat failed: {str(e)}")
         return jsonify({
             "success": False,
             "error": str(e),
@@ -585,7 +585,7 @@ def get_report_progress(report_id: str):
         if not progress:
             return jsonify({
                 "success": False,
-                "error": f"报告不存在或进度信息不可用: {report_id}"
+                "error": f"Report not found or progress unavailable: {report_id}"
             }), 404
         
         return jsonify({
@@ -594,7 +594,7 @@ def get_report_progress(report_id: str):
         })
         
     except Exception as e:
-        logger.error(f"获取报告进度失败: {str(e)}")
+        logger.error(f"Failed to get report progress: {str(e)}")
         return jsonify({
             "success": False,
             "error": str(e),
@@ -645,7 +645,7 @@ def get_report_sections(report_id: str):
         })
         
     except Exception as e:
-        logger.error(f"获取章节列表失败: {str(e)}")
+        logger.error(f"Failed to get section list: {str(e)}")
         return jsonify({
             "success": False,
             "error": str(e),
@@ -673,7 +673,7 @@ def get_single_section(report_id: str, section_index: int):
         if not os.path.exists(section_path):
             return jsonify({
                 "success": False,
-                "error": f"章节不存在: section_{section_index:02d}.md"
+                "error": f"Section not found: section_{section_index:02d}.md"
             }), 404
         
         with open(section_path, 'r', encoding='utf-8') as f:
@@ -689,7 +689,7 @@ def get_single_section(report_id: str, section_index: int):
         })
         
     except Exception as e:
-        logger.error(f"获取章节内容失败: {str(e)}")
+        logger.error(f"Failed to get section content: {str(e)}")
         return jsonify({
             "success": False,
             "error": str(e),
@@ -740,7 +740,7 @@ def check_report_status(simulation_id: str):
         })
         
     except Exception as e:
-        logger.error(f"检查报告状态失败: {str(e)}")
+        logger.error(f"Failed to check report status: {str(e)}")
         return jsonify({
             "success": False,
             "error": str(e),
@@ -801,7 +801,7 @@ def get_agent_log(report_id: str):
         })
         
     except Exception as e:
-        logger.error(f"获取Agent日志失败: {str(e)}")
+        logger.error(f"Failed to get agent log: {str(e)}")
         return jsonify({
             "success": False,
             "error": str(e),
@@ -835,15 +835,7 @@ def stream_agent_log(report_id: str):
         })
         
     except Exception as e:
-        logger.error(f"获取Agent日志失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
-
-
-# ============== 控制台日志接口 ==============
+        logger.error(f"Failed to get agent log stream: {str(e)}")
 
 @report_bp.route('/<report_id>/console-log', methods=['GET'])
 def get_console_log(report_id: str):
@@ -883,15 +875,7 @@ def get_console_log(report_id: str):
         })
         
     except Exception as e:
-        logger.error(f"获取控制台日志失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
-
-
-@report_bp.route('/<report_id>/console-log/stream', methods=['GET'])
+        logger.error(f"Failed to get console log: {str(e)}")
 def stream_console_log(report_id: str):
     """
     获取完整的控制台日志（一次性获取全部）
@@ -917,15 +901,7 @@ def stream_console_log(report_id: str):
         })
         
     except Exception as e:
-        logger.error(f"获取控制台日志失败: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }), 500
-
-
-# ============== 工具调用接口（供调试使用）==============
+        logger.error(f"Failed to get console log stream: {str(e)}")
 
 @report_bp.route('/tools/search', methods=['POST'])
 def search_graph_tool():
@@ -949,7 +925,7 @@ def search_graph_tool():
         if not graph_id or not query:
             return jsonify({
                 "success": False,
-                "error": "请提供 graph_id 和 query"
+                "error": "Please provide graph_id and query"
             }), 400
         
         from ..services.zep_tools import ZepToolsService
@@ -967,7 +943,7 @@ def search_graph_tool():
         })
         
     except Exception as e:
-        logger.error(f"图谱搜索失败: {str(e)}")
+        logger.error(f"Graph search failed: {str(e)}")
         return jsonify({
             "success": False,
             "error": str(e),
@@ -993,7 +969,7 @@ def get_graph_statistics_tool():
         if not graph_id:
             return jsonify({
                 "success": False,
-                "error": "请提供 graph_id"
+                "error": "Please provide graph_id"
             }), 400
         
         from ..services.zep_tools import ZepToolsService
@@ -1007,7 +983,7 @@ def get_graph_statistics_tool():
         })
         
     except Exception as e:
-        logger.error(f"获取图谱统计失败: {str(e)}")
+        logger.error(f"Failed to get graph statistics: {str(e)}")
         return jsonify({
             "success": False,
             "error": str(e),

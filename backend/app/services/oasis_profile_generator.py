@@ -315,7 +315,7 @@ class OasisProfileGenerator:
         
         # 必须有graph_id才能进行搜索
         if not self.graph_id:
-            logger.debug(f"跳过Zep检索：未设置graph_id")
+            logger.debug(f"Skipping Zep retrieval: graph_id not set")
             return results
         
         comprehensive_query = t('progress.zepSearchQuery', name=entity_name)
@@ -659,7 +659,7 @@ class OasisProfileGenerator:
         
         # 如果提取到了有意义的内容，标记为已修复
         if bio_match or persona_match:
-            logger.info(f"从损坏的JSON中提取了部分信息")
+            logger.info(f"Extracted partial information from malformed JSON")
             return {
                 "bio": bio,
                 "persona": persona,
@@ -918,7 +918,7 @@ Rules:
                                 writer.writeheader()
                                 writer.writerows(profiles_data)
                 except Exception as e:
-                    logger.warning(f"实时保存 profiles 失败: {e}")
+                    logger.warning(f"Failed to save profiles in real-time: {e}")
         
         # Capture locale before spawning thread pool workers
         current_locale = get_locale()
@@ -941,7 +941,7 @@ Rules:
                 return idx, profile, None
                 
             except Exception as e:
-                logger.error(f"生成实体 {entity.name} 的人设失败: {str(e)}")
+                logger.error(f"Failed to generate persona for entity {entity.name}: {str(e)}")
                 # 创建一个基础profile
                 fallback_profile = OasisAgentProfile(
                     user_id=idx,
@@ -954,7 +954,7 @@ Rules:
                 )
                 return idx, fallback_profile, str(e)
         
-        logger.info(f"开始并行生成 {total} 个Agent人设（并行数: {parallel_count}）...")
+        logger.info(f"Starting parallel generation of {total} agent personas (parallelism: {parallel_count})...")
         print(f"\n{'='*60}")
         print(f"开始生成Agent人设 - 共 {total} 个实体，并行数: {parallel_count}")
         print(f"{'='*60}\n")
@@ -996,7 +996,7 @@ Rules:
                         logger.info(f"[{current}/{total}] 成功生成人设: {entity.name} ({entity_type})")
                         
                 except Exception as e:
-                    logger.error(f"处理实体 {entity.name} 时发生异常: {str(e)}")
+                    logger.error(f"Exception processing entity {entity.name}: {str(e)}")
                     with lock:
                         completed_count[0] += 1
                     profiles[idx] = OasisAgentProfile(
@@ -1120,7 +1120,7 @@ Rules:
                 ]
                 writer.writerow(row)
         
-        logger.info(f"已保存 {len(profiles)} 个Twitter Profile到 {file_path} (OASIS CSV格式)")
+        logger.info(f"Saved {len(profiles)} Twitter profiles to {file_path} (OASIS CSV format)")
     
     def _normalize_gender(self, gender: Optional[str]) -> str:
         """
@@ -1198,7 +1198,7 @@ Rules:
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         
-        logger.info(f"已保存 {len(profiles)} 个Reddit Profile到 {file_path} (JSON格式，包含user_id字段)")
+        logger.info(f"Saved {len(profiles)} Reddit profiles to {file_path} (JSON format with user_id field)")
     
     # 保留旧方法名作为别名，保持向后兼容
     def save_profiles_to_json(

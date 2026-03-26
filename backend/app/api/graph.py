@@ -43,6 +43,13 @@ def get_project(project_id: str):
             "error": f"Project does not exist: {project_id}"
         }), 404
     
+    # Auto-heal: if a graph_id exists but status is still graph_building,
+    # the backend restarted before the final status save completed.  Fix it now.
+    if project.graph_id and project.status == ProjectStatus.GRAPH_BUILDING:
+        logger.info(f"Auto-healing project {project_id}: graph_id present but status was graph_building — marking graph_completed")
+        project.status = ProjectStatus.GRAPH_COMPLETED
+        ProjectManager.save_project(project)
+    
     return jsonify({
         "success": True,
         "data": project.to_dict()
@@ -411,7 +418,7 @@ def build_graph():
                 )
                 builder.set_ontology(graph_id, ontology)
                 
-                # 添加文本（progress_callback 签名是 (msg, progress_ratio)）
+                # Add text (progress_callback signature is (msg, progress_ratio)).
                 def add_progress_callback(msg, progress_ratio):
                     progress = 15 + int(progress_ratio * 40)  # 15% - 55%
                     task_manager.update_task(
@@ -422,7 +429,7 @@ def build_graph():
                 
                 task_manager.update_task(
                     task_id,
-                    message=f"开始添加 {total_chunks} 个文本块...",
+                    message=f"Adding {total_chunks} text chunks...",
                     progress=15
                 )
                 
@@ -433,10 +440,10 @@ def build_graph():
                     progress_callback=add_progress_callback
                 )
                 
-                # 等待Zep处理完成（查询每个episode的processed状态）
+                # Wait for Zep processing to finish (check each episode's processed status).
                 task_manager.update_task(
                     task_id,
-                    message="等待Zep处理数据...",
+                    message="Waiting for Zep to process data...",
                     progress=55
                 )
                 
@@ -450,15 +457,15 @@ def build_graph():
                 
                 builder._wait_for_episodes(episode_uuids, wait_progress_callback)
                 
-                # 获取图谱数据
+                # Retrieve graph data.
                 task_manager.update_task(
                     task_id,
-                    message="获取图谱数据...",
+                    message="Retrieving graph data...",
                     progress=95
                 )
                 graph_data = builder.get_graph_data(graph_id)
                 
-                # 更新项目状态
+                # Update project status.
                 project.status = ProjectStatus.GRAPH_COMPLETED
                 ProjectManager.save_project(project)
                 
@@ -466,7 +473,7 @@ def build_graph():
                 edge_count = graph_data.get("edge_count", 0)
                 build_logger.info(f"[{task_id}] Graph construction completed: graph_id={graph_id}, nodes={node_count}, edges={edge_count}")
 
-                # 完成
+                # Done.
                 task_manager.update_task(
                     task_id,
                     status=TaskStatus.COMPLETED,
@@ -482,7 +489,7 @@ def build_graph():
                 )
 
             except Exception as e:
-                # 更新项目状态为失败
+                # Update project status to failed.
                 build_logger.error(f"[{task_id}] Graph construction failed: {str(e)}")
                 build_logger.debug(traceback.format_exc())
                 
@@ -493,11 +500,11 @@ def build_graph():
                 task_manager.update_task(
                     task_id,
                     status=TaskStatus.FAILED,
-                    message=f"构建失败: {str(e)}",
+                    message=f"Build failed: {str(e)}",
                     error=traceback.format_exc()
                 )
         
-        # 启动后台线程
+        # Start the background thread.
         thread = threading.Thread(target=build_task, daemon=True)
         thread.start()
         
@@ -506,7 +513,7 @@ def build_graph():
             "data": {
                 "project_id": project_id,
                 "task_id": task_id,
-                "message": "图谱构建任务已启动，请通过 /task/{task_id} 查询进度"
+                "message": "Graph build task started. Query progress via /task/{task_id}"
             }
         })
         
@@ -518,19 +525,17 @@ def build_graph():
         }), 500
 
 
-# ============== 任务查询接口 ==============
+# ============== Task query endpoints ==============
 
 @graph_bp.route('/task/<task_id>', methods=['GET'])
 def get_task(task_id: str):
-    """
-    查询任务状态
-    """
+    """Query task status."""
     task = TaskManager().get_task(task_id)
     
     if not task:
         return jsonify({
             "success": False,
-            "error": f"任务不存在: {task_id}"
+            "error": f"Task not found: {task_id}"
         }), 404
     
     return jsonify({
@@ -541,19 +546,17 @@ def get_task(task_id: str):
 
 @graph_bp.route('/tasks', methods=['GET'])
 def list_tasks():
-    """
-    列出所有任务
-    """
+    """List all tasks."""
     tasks = TaskManager().list_tasks()
     
     return jsonify({
         "success": True,
-        "data": [t.to_dict() for t in tasks],
+        "data": tasks,
         "count": len(tasks)
     })
 
 
-# ============== 图谱数据接口 ==============
+# ============== Graph data endpoints ==============
 
 @graph_bp.route('/data/<graph_id>', methods=['GET'])
 def get_graph_data(graph_id: str):
@@ -564,7 +567,7 @@ def get_graph_data(graph_id: str):
         if not Config.ZEP_API_KEY:
             return jsonify({
                 "success": False,
-                "error": "ZEP_API_KEY未配置"
+                "error": "ZEP_API_KEY is not configured"
             }), 500
         
         builder = GraphBuilderService(api_key=Config.ZEP_API_KEY)
@@ -592,7 +595,7 @@ def delete_graph(graph_id: str):
         if not Config.ZEP_API_KEY:
             return jsonify({
                 "success": False,
-                "error": "ZEP_API_KEY未配置"
+                "error": "ZEP_API_KEY is not configured"
             }), 500
         
         builder = GraphBuilderService(api_key=Config.ZEP_API_KEY)
@@ -600,7 +603,7 @@ def delete_graph(graph_id: str):
         
         return jsonify({
             "success": True,
-            "message": f"图谱已删除: {graph_id}"
+            "message": f"Graph deleted: {graph_id}"
         })
         
     except Exception as e:
@@ -609,3 +612,106 @@ def delete_graph(graph_id: str):
             "error": str(e),
             "traceback": traceback.format_exc()
         }), 500
+
+
+# ============== Node / Edge editing ==============
+
+@graph_bp.route('/edge/<edge_uuid>', methods=['DELETE'])
+def delete_edge(edge_uuid: str):
+    """
+    Delete a single edge (relationship) by UUID.
+
+    The Zep SDK exposes graph.edge.delete(uuid_=...) for this operation.
+    Node deletion is not supported by the Zep API; deleting all edges of a node
+    effectively orphans it.
+    """
+    try:
+        if not Config.ZEP_API_KEY:
+            return jsonify({"success": False, "error": "ZEP_API_KEY not configured"}), 500
+
+        from zep_cloud.client import Zep
+        client = Zep(api_key=Config.ZEP_API_KEY)
+        client.graph.edge.delete(uuid_=edge_uuid)
+        logger.info("Deleted edge %s", edge_uuid)
+
+        return jsonify({"success": True, "deleted_uuid": edge_uuid})
+
+    except Exception as e:
+        logger.error("Failed to delete edge %s: %s", edge_uuid, e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@graph_bp.route('/import-md/<graph_id>', methods=['POST'])
+def import_markdown(graph_id: str):
+    """
+    Import relationships from a Markdown file into the graph.
+
+    Expected markdown format (one triple per line under a ## Relationships section):
+        - Source Node | Relationship Name | Target Node | Optional fact description
+    Lines not matching that pattern are silently skipped.
+
+    Request body: multipart/form-data with a single 'file' field (.md).
+    """
+    try:
+        if not Config.ZEP_API_KEY:
+            return jsonify({"success": False, "error": "ZEP_API_KEY not configured"}), 500
+
+        if 'file' not in request.files:
+            return jsonify({"success": False, "error": "No file provided"}), 400
+
+        f = request.files['file']
+        if not f.filename.lower().endswith('.md'):
+            return jsonify({"success": False, "error": "Only .md files are accepted"}), 400
+
+        text = f.read().decode('utf-8', errors='replace')
+
+        from zep_cloud.client import Zep
+        client = Zep(api_key=Config.ZEP_API_KEY)
+
+        added, skipped, errors = [], [], []
+
+        for raw_line in text.splitlines():
+            line = raw_line.strip()
+            # Accept lines starting with "- " or "* " and containing " | "
+            if line.startswith(('-', '*')):
+                line = line[1:].strip()
+            if '|' not in line:
+                continue
+
+            parts = [p.strip() for p in line.split('|')]
+            if len(parts) < 3:
+                skipped.append(raw_line)
+                continue
+
+            source_name, rel_name, target_name = parts[0], parts[1], parts[2]
+            fact_desc = parts[3] if len(parts) > 3 else f"{source_name} {rel_name} {target_name}"
+
+            if not source_name or not rel_name or not target_name:
+                skipped.append(raw_line)
+                continue
+
+            try:
+                client.graph.add_fact_triple(
+                    graph_id=graph_id,
+                    fact=fact_desc,
+                    fact_name=rel_name,
+                    source_node_name=source_name,
+                    target_node_name=target_name,
+                )
+                added.append({"source": source_name, "relation": rel_name, "target": target_name})
+                logger.info("Imported triple: %s -[%s]-> %s", source_name, rel_name, target_name)
+            except Exception as triple_err:
+                errors.append({"line": raw_line, "error": str(triple_err)})
+                logger.warning("Failed to import triple from line %r: %s", raw_line, triple_err)
+
+        return jsonify({
+            "success": True,
+            "added": len(added),
+            "skipped": len(skipped),
+            "errors": errors,
+            "triples": added,
+        })
+
+    except Exception as e:
+        logger.error("Markdown import failed: %s", e)
+        return jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}), 500

@@ -353,6 +353,33 @@ const pollTaskStatus = async (taskId) => {
         error.value = task.error
         addLog(`Graph build task failed: ${task.error}`)
       }
+    } else {
+      // Task not found (404) — the in-memory task store may have been lost
+      // after a server restart.  Fall back to checking the project status.
+      console.warn('Task not found, checking project status as fallback...')
+      const projRes = await getProject(currentProjectId.value)
+      if (projRes.success) {
+        projectData.value = projRes.data
+        // Treat as completed if:
+        //  • status is explicitly graph_completed, OR
+        //  • status is still graph_building but graph_id already exists
+        //    (backend restarted before the final status save ran)
+        const isDone = projRes.data.status === 'graph_completed' ||
+          (projRes.data.status === 'graph_building' && projRes.data.graph_id)
+        if (isDone && projRes.data.graph_id) {
+          addLog('Build completed (detected via project status).')
+          stopPolling()
+          stopGraphPolling()
+          currentPhase.value = 2
+          await loadGraph(projRes.data.graph_id)
+        } else if (projRes.data.status === 'failed') {
+          stopPolling()
+          stopGraphPolling()
+          error.value = projRes.data.error || 'Graph build failed'
+          addLog(`Graph build failed: ${projRes.data.error || 'unknown'}`)
+        }
+        // If genuinely still building with no graph_id yet, keep polling.
+      }
     }
   } catch (e) {
     console.error(e)

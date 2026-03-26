@@ -247,55 +247,57 @@ class IPCHandler:
     
     async def handle_batch_interview(self, command_id: str, interviews: List[Dict]) -> bool:
         """
-        处理批量采访命令
-        
+        Handle a batch interview command.
+
         Args:
             interviews: [{"agent_id": int, "prompt": str}, ...]
         """
-        try:
-            # 构建动作字典
-            actions = {}
-            agent_prompts = {}  # 记录每个agent的prompt
-            
-            for interview in interviews:
-                agent_id = interview.get("agent_id")
-                prompt = interview.get("prompt", "")
-                
-                try:
-                    agent = self.agent_graph.get_agent(agent_id)
-                    actions[agent] = ManualAction(
-                        action_type=ActionType.INTERVIEW,
-                        action_args={"prompt": prompt}
-                    )
-                    agent_prompts[agent_id] = prompt
-                except Exception as e:
-                    print(f"  警告: 无法获取Agent {agent_id}: {e}")
-            
-            if not actions:
-                self.send_response(command_id, "failed", error="没有有效的Agent")
-                return False
-            
-            # 执行批量Interview
-            await self.env.step(actions)
-            
-            # 获取所有结果
-            results = {}
-            for agent_id in agent_prompts.keys():
-                result = self._get_interview_result(agent_id)
-                results[agent_id] = result
-            
-            self.send_response(command_id, "completed", result={
-                "interviews_count": len(results),
-                "results": results
-            })
-            print(f"  批量Interview完成: {len(results)} 个Agent")
-            return True
-            
-        except Exception as e:
-            error_msg = str(e)
-            print(f"  批量Interview失败: {error_msg}")
-            self.send_response(command_id, "failed", error=error_msg)
+        actions = {}
+        agent_prompts = {}
+        agent_errors = []  # per-agent resolution errors
+
+        for interview in interviews:
+            agent_id = interview.get("agent_id")
+            prompt = interview.get("prompt", "")
+            try:
+                agent = self.agent_graph.get_agent(agent_id)
+                actions[agent] = ManualAction(
+                    action_type=ActionType.INTERVIEW,
+                    action_args={"prompt": prompt}
+                )
+                agent_prompts[agent_id] = prompt
+            except Exception as e:
+                print(f"  WARNING: Cannot get agent {agent_id}: {e}")
+                agent_errors.append({"agent_id": agent_id, "error": str(e)})
+
+        if not actions:
+            error_summary = "; ".join(
+                f"agent {e['agent_id']}: {e['error']}" for e in agent_errors
+            ) if agent_errors else "No valid agents found"
+            print(f"  Batch interview failed — {error_summary}")
+            self.send_response(command_id, "failed", error=error_summary, result={"agent_errors": agent_errors})
             return False
+
+        try:
+            await self.env.step(actions)
+        except Exception as e:
+            error_msg = f"env.step failed: {e}"
+            print(f"  Batch interview failed: {error_msg}")
+            self.send_response(command_id, "failed", error=error_msg, result={"agent_errors": agent_errors})
+            return False
+
+        results = {}
+        for agent_id in agent_prompts.keys():
+            result = self._get_interview_result(agent_id)
+            results[agent_id] = result
+
+        self.send_response(command_id, "completed", result={
+            "interviews_count": len(results),
+            "results": results,
+            "agent_errors": agent_errors,
+        })
+        print(f"  Batch interview done: {len(results)} agent(s), {len(agent_errors)} error(s)")
+        return True
     
     def _get_interview_result(self, agent_id: int) -> Dict[str, Any]:
         """从数据库获取最新的Interview结果"""
