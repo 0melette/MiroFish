@@ -8,7 +8,7 @@
       <div class="nav-center">
         <div class="step-badge">{{ t.step01 }}</div>
         <div class="step-name">{{ t.graphConstruction }}</div>
-      </div>
+      </div>  
 
       <div class="nav-status">
         <span class="status-dot" :class="statusClass"></span>
@@ -48,15 +48,18 @@
         
         <div class="graph-container" ref="graphContainer">
           <!-- 图谱可视化（只要有数据就显示） -->
+          <!-- Visualization of graphs (displays if data is available) -->
           <div v-if="graphData" class="graph-view">
             <svg ref="graphSvg" class="graph-svg"></svg>
             <!-- 构建中提示 -->
+            <!-- Building prompt -->
             <div v-if="currentPhase === 1" class="graph-building-hint">
               <span class="building-dot"></span>
               Live updating...
             </div>
             
-            <!-- 节点/边详情面板 -->
+            <!-- 节点/边详情面板 -->  
+            <!-- Node/Edge Details Panel -->
             <div v-if="selectedItem" class="detail-panel">
               <div class="detail-panel-header">
                 <span class="detail-title">{{ selectedItem.type === 'node' ? 'Node Details' : 'Relationship' }}</span>
@@ -67,6 +70,7 @@
               </div>
               
               <!-- 节点详情 -->
+              <!-- Node Details -->
               <div v-if="selectedItem.type === 'node'" class="detail-content">
                 <div class="detail-row">
                   <span class="detail-label">Name:</span>
@@ -108,8 +112,10 @@
               </div>
               
               <!-- 边详情 -->
+              <!-- Edge Details -->
               <div v-else class="detail-content">
                 <!-- 关系展示 -->
+                <!-- Relationship Display -->`
                 <div class="edge-relation">
                   <span class="edge-source">{{ selectedItem.data.source_name || selectedItem.data.source_node_name }}</span>
                   <span class="edge-arrow">→</span>
