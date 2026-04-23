@@ -6,13 +6,16 @@
       
       <!-- 中间步骤指示器 -->
       <div class="nav-center">
-        <div class="step-badge">STEP 01</div>
-        <div class="step-name">图谱构建</div>
+        <div class="step-badge">{{ t.step01 }}</div>
+        <div class="step-name">{{ t.graphConstruction }}</div>
       </div>
 
       <div class="nav-status">
         <span class="status-dot" :class="statusClass"></span>
         <span class="status-text">{{ statusText }}</span>
+        <button class="lang-toggle" @click="lang = lang === 'en' ? 'zh' : 'en'">
+          {{ lang === 'en' ? '中文' : 'EN' }}
+        </button>
       </div>
     </nav>
 
@@ -23,20 +26,20 @@
         <div class="panel-header">
           <div class="header-left">
             <span class="header-deco">◆</span>
-            <span class="header-title">实时知识图谱</span>
+            <span class="header-title">{{ t.realtimeKnowledgeGraph }}</span>
           </div>
           <div class="header-right">
             <template v-if="graphData">
-              <span class="stat-item">{{ graphData.node_count || graphData.nodes?.length || 0 }} 节点</span>
+              <span class="stat-item">{{ graphData.node_count || graphData.nodes?.length || 0 }} {{ t.nodes }}</span>
               <span class="stat-divider">|</span>
-              <span class="stat-item">{{ graphData.edge_count || graphData.edges?.length || 0 }} 关系</span>
+              <span class="stat-item">{{ graphData.edge_count || graphData.edges?.length || 0 }} {{ t.relationships }}</span>
               <span class="stat-divider">|</span>
             </template>
             <div class="action-buttons">
-                <button class="action-btn" @click="refreshGraph" :disabled="graphLoading" title="刷新图谱">
+                <button class="action-btn" @click="refreshGraph" :disabled="graphLoading" :title="t.refreshGraph">
                   <span class="icon-refresh" :class="{ 'spinning': graphLoading }">↻</span>
                 </button>
-                <button class="action-btn" @click="toggleFullScreen" :title="isFullScreen ? '退出全屏' : '全屏显示'">
+                <button class="action-btn" @click="toggleFullScreen" :title="isFullScreen ? t.exitFullscreen : t.enterFullscreen">
                   <span class="icon-fullscreen">{{ isFullScreen ? '↙' : '↗' }}</span>
                 </button>
             </div>
@@ -189,10 +192,10 @@
                 <line x1="50" y1="72" x2="74" y2="66" stroke="#000" stroke-width="1"/>
               </svg>
             </div>
-            <p class="waiting-text">等待本体生成</p>
-            <p class="waiting-hint">生成完成后将自动开始构建图谱</p>
+            <p class="waiting-text">{{ t.waitingOntology }}</p>
+            <p class="waiting-hint">{{ t.willStartGraphAfter }}</p>
           </div>
-          
+
           <!-- 构建中但还没有数据 -->
           <div v-else-if="currentPhase === 1 && !graphData" class="graph-waiting">
             <div class="loading-animation">
@@ -200,8 +203,8 @@
               <div class="loading-ring"></div>
               <div class="loading-ring"></div>
             </div>
-            <p class="waiting-text">图谱构建中</p>
-            <p class="waiting-hint">数据即将显示...</p>
+            <p class="waiting-text">{{ t.buildingGraph }}</p>
+            <p class="waiting-hint">{{ t.dataComingSoon }}</p>
           </div>
           
           <!-- 错误状态 -->
@@ -375,7 +378,7 @@
           <!-- 下一步按钮 -->
           <div class="next-step-section" v-if="currentPhase >= 2">
             <button class="next-step-btn" @click="goToNextStep" :disabled="currentPhase < 2">
-              进入环境搭建
+              {{ t.enterEnvironmentSetup }}
               <span class="btn-arrow">→</span>
             </button>
           </div>
@@ -385,23 +388,23 @@
         <div class="project-panel">
           <div class="project-header">
             <span class="project-icon">◇</span>
-            <span class="project-title">项目信息</span>
+            <span class="project-title">{{ t.projectInfo }}</span>
           </div>
           <div class="project-details" v-if="projectData">
             <div class="project-item">
-              <span class="item-label">项目名称</span>
+              <span class="item-label">{{ t.projectName }}</span>
               <span class="item-value">{{ projectData.name }}</span>
             </div>
             <div class="project-item">
-              <span class="item-label">项目ID</span>
+              <span class="item-label">{{ t.projectId }}</span>
               <span class="item-value code">{{ projectData.project_id }}</span>
             </div>
             <div class="project-item" v-if="projectData.graph_id">
-              <span class="item-label">图谱ID</span>
+              <span class="item-label">{{ t.graphId }}</span>
               <span class="item-value code">{{ projectData.graph_id }}</span>
             </div>
             <div class="project-item">
-              <span class="item-label">模拟需求</span>
+              <span class="item-label">{{ t.simulationRequirement }}</span>
               <span class="item-value">{{ projectData.simulation_requirement || '-' }}</span>
             </div>
           </div>
@@ -420,6 +423,53 @@ import * as d3 from 'd3'
 
 const route = useRoute()
 const router = useRouter()
+
+const lang = ref('en')
+
+const i18n = {
+  en: {
+    step01: 'STEP 01',
+    graphConstruction: 'Graph Construction',
+    realtimeKnowledgeGraph: 'Real-time Knowledge Graph',
+    nodes: 'Nodes',
+    relationships: 'Relationships',
+    refreshGraph: 'Refresh Graph',
+    exitFullscreen: 'Exit Fullscreen',
+    enterFullscreen: 'Fullscreen',
+    waitingOntology: 'Waiting for ontology generation',
+    willStartGraphAfter: 'Will automatically start building graph after generation completes',
+    buildingGraph: 'Building graph',
+    dataComingSoon: 'Data coming soon...',
+    enterEnvironmentSetup: 'Enter Environment Setup',
+    projectInfo: 'Project Information',
+    projectName: 'Project Name',
+    projectId: 'Project ID',
+    graphId: 'Graph ID',
+    simulationRequirement: 'Simulation Requirement',
+  },
+  zh: {
+    step01: 'STEP 01',
+    graphConstruction: '图谱构建',
+    realtimeKnowledgeGraph: '实时知识图谱',
+    nodes: '节点',
+    relationships: '关系',
+    refreshGraph: '刷新图谱',
+    exitFullscreen: '退出全屏',
+    enterFullscreen: '全屏显示',
+    waitingOntology: '等待本体生成',
+    willStartGraphAfter: '生成完成后将自动开始构建图谱',
+    buildingGraph: '图谱构建中',
+    dataComingSoon: '数据即将显示...',
+    enterEnvironmentSetup: '进入环境搭建',
+    projectInfo: '项目信息',
+    projectName: '项目名称',
+    projectId: '项目ID',
+    graphId: '图谱ID',
+    simulationRequirement: '模拟需求',
+  }
+}
+
+const t = computed(() => i18n[lang.value])
 
 // 当前项目ID（可能从'new'变为实际ID）
 const currentProjectId = ref(route.params.projectId)
@@ -1192,6 +1242,26 @@ onUnmounted(() => {
 .status-text {
   font-size: 0.75rem;
   color: #999;
+  margin-right: 16px;
+}
+
+.lang-toggle {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #FFF;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: all 0.2s;
+}
+
+.lang-toggle:hover {
+  border-color: #FFF;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 /* 主内容区 */
